@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KNN – Customer Purchase Prediction Project</title>
+<style>
+:root{--bg:#f5f7fb;--fg:#1c2433;--mut:#5b6678;--card:#fff;--line:#d9dfea;--acc:#1f5fbf;--yes:#1a8a5a;--no:#d2432f;--code:#eef2f8;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121722;--fg:#e8edf6;--mut:#9aa6ba;--card:#1b2231;--line:#2d374a;--acc:#6aa5ff;--yes:#3ecf8e;--no:#ff7a66;--code:#0e131c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 "Segoe UI",system-ui,sans-serif}
+main{max-width:920px;margin:0 auto;padding:24px 16px 60px}
+h1{font:700 clamp(28px,5vw,42px)/1.15 Georgia,"Times New Roman",serif;margin:8px 0 6px}
+h2{font:700 26px/1.25 Georgia,serif;margin:0 0 10px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px;margin:18px 0}
+p{margin:8px 0}.mut{color:var(--mut)}
+pre{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:14px;overflow-x:auto;font:14px/1.55 Consolas,monospace}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-family:Consolas,monospace;font-size:.92em}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
+.scroll{overflow-x:auto}
+.box{border-left:4px solid var(--acc);background:var(--code);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+.ctrl{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin:10px 0}
+canvas{width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg);cursor:crosshair;touch-action:manipulation}
+.res{font-size:20px;font-weight:700;margin:10px 0}
+.yes{color:var(--yes)}.no{color:var(--no)}
+.bar{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:14px}
+.bar b{width:46px}.bar i{display:block;height:12px;border-radius:3px}
+ol li,ul li{margin:5px 0}
+input[type=range]{width:200px}
+</style>
+</head>
+<body>
+<main>
+<h1>KNN: Predict Who Will Buy</h1>
+<p class="mut">Project-based lesson on K-Nearest Neighbors (classification) for beginners. Tools: Python, pandas, scikit-learn.</p>
+
+<section>
+<h2>1. Business problem</h2>
+<p>A company shows an online ad for a new smartphone. We have data of 60 past customers: their <b>Age</b>, <b>Monthly Salary</b> and whether they <b>bought</b> the phone (1 = Yes, 0 = No).</p>
+<div class="box"><b>Goal:</b> a new customer visits the website. Predict whether he/she will buy, so the company can target the right people.</div>
+<p>Type of problem: <b>Classification</b> (answer is a category: Buy / Not Buy).</p>
+</section>
+
+<section>
+<h2>2. KNN idea in one line</h2>
+<p><b>“Tell me who your neighbours are, I will tell you who you are.”</b></p>
+<p>To predict a new point: find the <b>K closest</b> old points, let them <b>vote</b>, and the majority label wins. There is no formula to learn, KNN just remembers the data (a <i>lazy learner</i>).</p>
+</section>
+
+<section>
+<h2>3. Try it yourself (interactive)</h2>
+<p>Green = bought, Red = did not buy. <b>Click anywhere on the graph</b> to place a new customer. Change K and see the prediction change.</p>
+<div class="ctrl">
+<label>K = <b id="kv">5</b> <input id="k" type="range" min="1" max="15" value="5"></label>
+<label><input id="sc" type="checkbox" checked> Scale features (Min-Max)</label>
+</div>
+<canvas id="cv" width="760" height="440"></canvas>
+<div class="res" id="out"></div>
+<div class="scroll"><table id="nt"></table></div>
+<div class="box">Untick “Scale features” and click again. Salary is in thousands and Age is in tens, so salary starts dominating the distance. That is why we scale (next section).</div>
+</section>
+
+<section>
+<h2>4. Distance: how is “near” measured?</h2>
+<p>KNN uses <b>Euclidean distance</b>:</p>
+<pre>distance = sqrt( (age1 - age2)^2 + (salary1 - salary2)^2 )</pre>
+<p><b>Worked example.</b> New customer: Age 30, Salary 60. Old customer: Age 40, Salary 80.</p>
+<pre>d = sqrt( (30-40)^2 + (60-80)^2 )
+  = sqrt( 100 + 400 )
+  = sqrt(500) = 22.36</pre>
+<p>Compute this distance for all old customers, sort smallest to largest, take the first K.</p>
+</section>
+
+<section>
+<h2>5. Why Feature Scaling is a must</h2>
+<p>Age ranges 18 to 60, Salary ranges 15 to 150 (in thousands, or 15,000 to 150,000 in rupees). Without scaling, a salary difference of 10,000 looks far bigger than an age difference of 10 years, so Age is almost ignored. After Min-Max scaling both features lie between 0 and 1 and get equal importance.</p>
+<pre>x_scaled = (x - x_min) / (x_max - x_min)</pre>
+</section>
+
+<section>
+<h2>6. Steps of the algorithm</h2>
+<ol>
+<li>Choose K (for example 5).</li>
+<li>Scale the features.</li>
+<li>Calculate the distance from the new point to every training point.</li>
+<li>Pick the K points with the smallest distance.</li>
+<li>Count the labels among them. The majority is the prediction.</li>
+</ol>
+</section>
+
+<section>
+<h2>7. Choosing the best K</h2>
+<ul>
+<li><b>K too small (K=1):</b> follows noise, overfitting.</li>
+<li><b>K too large:</b> ignores local pattern, underfitting.</li>
+<li>Use an <b>odd K</b> for two classes to avoid ties.</li>
+</ul>
+<p>Below: accuracy for each K on this dataset using leave-one-out testing (each customer is predicted using all the others). Compare scaled and raw data.</p>
+<div id="kbars"></div>
+<p class="mut" style="font-size:14px"><span style="color:var(--acc)">■</span> scaled &nbsp; <span style="color:var(--mut)">■</span> not scaled</p>
+</section>
+
+<section>
+<h2>8. Python code (Google Colab)</h2>
+<pre>import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+df = pd.read_csv("customers.csv")      # columns: Age, Salary, Bought
+X = df[["Age", "Salary"]]
+y = df["Bought"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42)
+
+scaler = MinMaxScaler()
+X_train = scaler.fit_transform(X_train)   # fit only on train data
+X_test  = scaler.transform(X_test)
+
+model = KNeighborsClassifier(n_neighbors=5)
+model.fit(X_train, y_train)
+
+pred = model.predict(X_test)
+print("Accuracy:", accuracy_score(y_test, pred))
+print(confusion_matrix(y_test, pred))
+print(classification_report(y_test, pred))
+
+# Predict a new customer: Age 35, Salary 70 (thousands)
+new = scaler.transform([[35, 70]])
+print(model.predict(new))</pre>
+<p><b>Find best K with a loop:</b></p>
+<pre>for k in range(1, 16, 2):
+    m = KNeighborsClassifier(n_neighbors=k).fit(X_train, y_train)
+    print(k, m.score(X_test, y_test))</pre>
+<div class="box"><b>Common mistake:</b> fitting the scaler on the full data before splitting. Always <code>fit</code> on train and only <code>transform</code> on test.</div>
+</section>
+
+<section>
+<h2>9. Practice assignments</h2>
+<ol>
+<li>Change K from 1 to 15 and note when test accuracy is highest.</li>
+<li>Remove scaling and compare accuracy. Explain the difference.</li>
+<li>Add a third feature (for example, hours spent on website) and retrain.</li>
+<li>Try <code>metric="manhattan"</code> and compare with Euclidean.</li>
+<li>Use the churn.csv dataset to predict customer churn with KNN.</li>
+</ol>
+</section>
+</main>
+
+<script>
+(function(){
+var s=7;function r(){s=s*16807%2147483647;return s/2147483647}
+var D=[];
+for(var i=0;i<60;i++){var a=18+Math.floor(r()*43),sa=15+Math.floor(r()*136);
+var sc=(a-18)/42*.5+(sa-15)/135*.6+(r()-.5)*.25;D.push({a:a,s:sa,y:sc>.5?1:0});}
+var amin=18,amax=60,smin=15,smax=150;
+var cv=document.getElementById('cv'),cx=cv.getContext('2d');
+var q={a:35,s:70};
+var css=function(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()};
+var X0=15,X1=63,Y0=10,Y1=155,W=cv.width,H=cv.height,P=44;
+function px(a){return P+(a-X0)/(X1-X0)*(W-P-14)}
+function py(v){return H-P-(v-Y0)/(Y1-Y0)*(H-P-14)}
+function dist(p,t,sc){var da=p.a-t.a,ds=p.s-t.s;
+if(sc){da/=(amax-amin);ds/=(smax-smin)}return Math.sqrt(da*da+ds*ds)}
+function knn(t,k,sc,skip){var arr=[];D.forEach(function(p,i){if(i!==skip)arr.push({p:p,d:dist(p,t,sc)})});
+arr.sort(function(x,y){return x.d-y.d});var n=arr.slice(0,k);
+var yes=n.filter(function(z){return z.p.y===1}).length;return{n:n,yes:yes,pred:yes*2>k?1:0}}
+function draw(){
+var k=+document.getElementById('k').value,sc=document.getElementById('sc').checked;
+document.getElementById('kv').textContent=k;
+var fg=css('--fg'),mut=css('--mut'),yes=css('--yes'),no=css('--no'),acc=css('--acc'),line=css('--line');
+cx.clearRect(0,0,W,H);cx.font='14px sans-serif';cx.fillStyle=mut;cx.strokeStyle=line;cx.lineWidth=1;
+for(var a=20;a<=60;a+=10){cx.beginPath();cx.moveTo(px(a),14);cx.lineTo(px(a),H-P);cx.stroke();cx.fillText(a,px(a)-8,H-P+18)}
+for(var v=20;v<=150;v+=30){cx.beginPath();cx.moveTo(P,py(v));cx.lineTo(W-14,py(v));cx.stroke();cx.fillText(v,8,py(v)+5)}
+cx.fillText('Age (years)',W/2-30,H-8);cx.save();cx.translate(14,H/2+20);cx.rotate(-Math.PI/2);cx.fillText('Salary (thousands)',0,0);cx.restore();
+var R=knn(q,k,sc);
+cx.strokeStyle=acc;cx.lineWidth=1.5;
+R.n.forEach(function(z){cx.beginPath();cx.moveTo(px(q.a),py(q.s));cx.lineTo(px(z.p.a),py(z.p.s));cx.stroke()});
+D.forEach(function(p){cx.beginPath();cx.arc(px(p.a),py(p.s),6,0,7);cx.fillStyle=p.y?yes:no;cx.globalAlpha=.85;cx.fill();cx.globalAlpha=1});
+R.n.forEach(function(z){cx.beginPath();cx.arc(px(z.p.a),py(z.p.s),9,0,7);cx.strokeStyle=fg;cx.lineWidth=2;cx.stroke()});
+cx.beginPath();cx.moveTo(px(q.a),py(q.s)-12);cx.lineTo(px(q.a)+10,py(q.s)+8);cx.lineTo(px(q.a)-10,py(q.s)+8);cx.closePath();cx.fillStyle=acc;cx.fill();cx.strokeStyle=fg;cx.lineWidth=1.5;cx.stroke();
+var o=document.getElementById('out');
+o.innerHTML='New customer: Age '+q.a+', Salary '+q.s+'k. Votes: <span class="yes">'+R.yes+' Buy</span> vs <span class="no">'+(k-R.yes)+' Not Buy</span>. Prediction: <span class="'+(R.pred?'yes':'no')+'">'+(R.pred?'BUY':'NOT BUY')+'</span>';
+var h='<tr><th>Rank</th><th>Age</th><th>Salary (k)</th><th>Distance</th><th>Label</th></tr>';
+R.n.forEach(function(z,i){h+='<tr><td>'+(i+1)+'</td><td>'+z.p.a+'</td><td>'+z.p.s+'</td><td>'+z.d.toFixed(3)+'</td><td class="'+(z.p.y?'yes':'no')+'">'+(z.p.y?'Buy':'Not Buy')+'</td></tr>'});
+document.getElementById('nt').innerHTML=h;
+}
+cv.addEventListener('click',function(e){var b=cv.getBoundingClientRect(),x=(e.clientX-b.left)*W/b.width,y=(e.clientY-b.top)*H/b.height;
+q.a=Math.round(X0+(x-P)/(W-P-14)*(X1-X0));q.s=Math.round(Y0+(H-P-y)/(H-P-14)*(Y1-Y0));draw()});
+document.getElementById('k').addEventListener('input',draw);
+document.getElementById('sc').addEventListener('change',draw);
+window.addEventListener('resize',draw);
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+function loo(k,sc){var ok=0;D.forEach(function(p,i){if(knn(p,k,sc,i).pred===p.y)ok++});return ok/D.length*100}
+var kb='';
+for(var k=1;k<=15;k+=2){var a1=loo(k,true),a2=loo(k,false);
+kb+='<div class="bar"><b>K='+k+'</b><div style="flex:1"><i style="width:'+a1+'%;background:var(--acc)"></i><i style="width:'+a2+'%;background:var(--mut);margin-top:2px"></i></div><span>'+a1.toFixed(0)+'% / '+a2.toFixed(0)+'%</span></div>'}
+document.getElementById('kbars').innerHTML=kb;
+draw();
+})();
+</script>
+</body>
+</html>
